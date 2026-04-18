@@ -66,10 +66,12 @@ const Operation = {
 };
 
 const ObjectType = {
-  SymmetricKey: 0x00000001,
-  PublicKey:    0x00000002,
-  PrivateKey:   0x00000003,
-  Certificate:  0x00000006,
+  Certificate:  0x00000001,
+  SymmetricKey: 0x00000002,
+  PublicKey:    0x00000003,
+  PrivateKey:   0x00000004,
+  SplitKey:     0x00000005,
+  Template:     0x00000006,
   SecretData:   0x00000007,
   OpaqueData:   0x00000008,
 };
