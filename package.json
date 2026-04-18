@@ -17,7 +17,8 @@
     "mTLS",
     "TTLV"
   ],
-  "author": "Horizon Digital Engineering LLC",
+  "author": "Leslie Gutschow <leslie.gutschow@horizondigital.dev>",
+  "homepage": "https://cyphera.io",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
