@@ -1,0 +1,29 @@
+{
+  "name": "@cyphera/kmip",
+  "version": "0.1.0",
+  "description": "KMIP client for Node.js — connect to any KMIP-compliant key management server (Thales, IBM SKLM, Entrust, Fortanix, HashiCorp Vault).",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test src/*.test.js"
+  },
+  "keywords": [
+    "kmip",
+    "key-management",
+    "kms",
+    "thales",
+    "ciphertrust",
+    "hsm",
+    "encryption-keys",
+    "mTLS",
+    "TTLV"
+  ],
+  "author": "Horizon Digital Engineering LLC",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cyphera-labs/kmip-node"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
