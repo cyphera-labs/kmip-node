@@ -62,7 +62,7 @@ const Operation = {
   Locate:   0x00000008,
   Activate: 0x00000012,
   Destroy:  0x00000014,
-  Check:    0x0000001C,
+  Check:    0x00000009,
 };
 
 const ObjectType = {

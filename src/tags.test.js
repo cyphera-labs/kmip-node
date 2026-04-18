@@ -34,7 +34,7 @@ describe("Tags — Operations (KMIP 1.4 spec)", () => {
   it("Get = 0x0000000A", () => assert.equal(Operation.Get, 0x0000000A));
   it("Activate = 0x00000012", () => assert.equal(Operation.Activate, 0x00000012));
   it("Destroy = 0x00000014", () => assert.equal(Operation.Destroy, 0x00000014));
-  it("Check = 0x0000001C", () => assert.equal(Operation.Check, 0x0000001C));
+  it("Check = 0x00000009", () => assert.equal(Operation.Check, 0x00000009));
 
   it("has no duplicate values", () => {
     const values = Object.values(Operation);
