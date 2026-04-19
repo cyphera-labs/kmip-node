@@ -121,13 +121,20 @@ function encodeDateTime(tag, date) {
   return encodeTTLV(tag, Type.DateTime, buf);
 }
 
+/** Maximum nesting depth for TTLV structures. */
+const MAX_DECODE_DEPTH = 32;
+
 /**
  * Decode a TTLV buffer into a parsed tree.
  * @param {Buffer} buf
  * @param {number} [offset=0]
+ * @param {number} [depth=0] - current recursion depth (internal)
  * @returns {{ tag: number, type: number, value: any, length: number, totalLength: number }}
  */
-function decodeTTLV(buf, offset = 0) {
+function decodeTTLV(buf, offset = 0, depth = 0) {
+  if (depth > MAX_DECODE_DEPTH) {
+    throw new Error("TTLV: maximum nesting depth exceeded");
+  }
   if (buf.length - offset < 8) throw new Error("TTLV buffer too short for header");
 
   const tag = (buf[offset] << 16) | (buf[offset + 1] << 8) | buf[offset + 2];
@@ -138,6 +145,11 @@ function decodeTTLV(buf, offset = 0) {
 
   const valueStart = offset + 8;
 
+  // Bounds check: ensure declared length fits within buffer.
+  if (valueStart + padded > buf.length) {
+    throw new Error(`TTLV: declared length ${length} exceeds buffer (have ${buf.length - valueStart} bytes)`);
+  }
+
   let value;
   switch (type) {
     case Type.Structure: {
@@ -145,7 +157,7 @@ function decodeTTLV(buf, offset = 0) {
       let pos = valueStart;
       const end = valueStart + length;
       while (pos < end) {
-        const child = decodeTTLV(buf, pos);
+        const child = decodeTTLV(buf, pos, depth + 1);
         children.push(child);
         pos += child.totalLength;
       }

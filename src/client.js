@@ -21,6 +21,9 @@ const {
 const { Operation, Tag } = require("./tags");
 const { findChild, findChildren } = require("./ttlv");
 
+/** Maximum KMIP response size (16MB). */
+const MAX_RESPONSE_SIZE = 16 * 1024 * 1024;
+
 /**
  * KMIP client — connects to any KMIP 1.4 server via mTLS.
  *
@@ -46,12 +49,14 @@ class KmipClient {
    * @param {string} options.clientKey — path to client private key PEM (or PEM string)
    * @param {string} [options.caCert] — path to CA certificate PEM (or PEM string)
    * @param {number} [options.timeout=10000] — connection timeout in ms
+   * @param {boolean} [options.insecureSkipVerify=false] — DANGER: disables server certificate verification
    */
   constructor(options) {
     this.host = options.host;
     this.port = options.port || 5696;
     this.timeout = options.timeout || 10000;
     this._socket = null;
+    this._insecureSkipVerify = options.insecureSkipVerify === true;
 
     // Load certs — accept file paths or PEM strings
     this._cert = loadPem(options.clientCert);
@@ -452,6 +457,13 @@ class KmipClient {
         // TTLV header: first 8 bytes contain the total length
         if (expectedLength === null && buf.length >= 8) {
           const valueLength = buf.readUInt32BE(4);
+          // Validate response size before allocating.
+          if (valueLength > MAX_RESPONSE_SIZE) {
+            socket.removeListener("data", onData);
+            this._socket = null; // Mark connection as stale.
+            reject(new Error(`KMIP: response too large (${valueLength} bytes, max ${MAX_RESPONSE_SIZE})`));
+            return;
+          }
           expectedLength = 8 + valueLength;
         }
 
@@ -462,8 +474,16 @@ class KmipClient {
       };
 
       socket.on("data", onData);
-      socket.once("error", reject);
-      socket.write(request);
+      socket.once("error", (err) => {
+        this._socket = null; // Mark connection as stale on error.
+        reject(err);
+      });
+      socket.write(request, (err) => {
+        if (err) {
+          this._socket = null; // Mark connection as stale on write error.
+          reject(new Error(`KMIP: failed to write request: ${err.message}`));
+        }
+      });
     });
   }
 
@@ -483,7 +503,9 @@ class KmipClient {
         cert: this._cert,
         key: this._key,
         ca: this._ca,
-        rejectUnauthorized: !!this._ca,
+        // Always verify server certificates by default (uses system roots when no CA provided).
+        // Only disable if explicitly opted in via insecureSkipVerify.
+        rejectUnauthorized: !this._insecureSkipVerify,
         timeout: this.timeout,
       };
 
