@@ -95,9 +95,11 @@ describe("Tags — Algorithms (KMIP 1.4 spec)", () => {
   it("DSA = 0x00000005", () => assert.equal(Algorithm.DSA, 0x00000005));
   it("ECDSA = 0x00000006", () => assert.equal(Algorithm.ECDSA, 0x00000006));
   it("HMACSHA1 = 0x00000007", () => assert.equal(Algorithm.HMACSHA1, 0x00000007));
-  it("HMACSHA256 = 0x00000008", () => assert.equal(Algorithm.HMACSHA256, 0x00000008));
-  it("HMACSHA384 = 0x00000009", () => assert.equal(Algorithm.HMACSHA384, 0x00000009));
-  it("HMACSHA512 = 0x0000000A", () => assert.equal(Algorithm.HMACSHA512, 0x0000000A));
+  it("HMACSHA224 = 0x00000008", () => assert.equal(Algorithm.HMACSHA224, 0x00000008));
+  it("HMACSHA256 = 0x00000009", () => assert.equal(Algorithm.HMACSHA256, 0x00000009));
+  it("HMACSHA384 = 0x0000000A", () => assert.equal(Algorithm.HMACSHA384, 0x0000000A));
+  it("HMACSHA512 = 0x0000000B", () => assert.equal(Algorithm.HMACSHA512, 0x0000000B));
+  it("HMACMD5 = 0x0000000C", () => assert.equal(Algorithm.HMACMD5, 0x0000000C));
 
   it("has no duplicate values", () => {
     const values = Object.values(Algorithm);
@@ -145,7 +147,9 @@ describe("Tags — UsageMask (bitmask)", () => {
   it("WrapKey = 0x00000010", () => assert.equal(UsageMask.WrapKey, 0x00000010));
   it("UnwrapKey = 0x00000020", () => assert.equal(UsageMask.UnwrapKey, 0x00000020));
   it("Export = 0x00000040", () => assert.equal(UsageMask.Export, 0x00000040));
-  it("DeriveKey = 0x00000100", () => assert.equal(UsageMask.DeriveKey, 0x00000100));
+  it("MACGenerate = 0x00000080", () => assert.equal(UsageMask.MACGenerate, 0x00000080));
+  it("MACVerify = 0x00000100", () => assert.equal(UsageMask.MACVerify, 0x00000100));
+  it("DeriveKey = 0x00000200", () => assert.equal(UsageMask.DeriveKey, 0x00000200));
   it("KeyAgreement = 0x00000800", () => assert.equal(UsageMask.KeyAgreement, 0x00000800));
 
   it("Encrypt | Decrypt combines correctly", () => {
