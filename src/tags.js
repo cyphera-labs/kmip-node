@@ -54,15 +54,72 @@ const Tag = {
 
   // Template
   TemplateAttribute:     0x420091,
+
+  // Key pair
+  PrivateKeyUniqueIdentifier: 0x420066,
+  PublicKeyUniqueIdentifier:  0x42006F,
+  PublicKey:                  0x42004E,
+  PrivateKey:                 0x42004D,
+
+  // Certificate
+  Certificate:      0x420021,
+  CertificateType:  0x42001D,
+  CertificateValue: 0x42001E,
+
+  // Crypto operations
+  Data:              0x420033,
+  IVCounterNonce:    0x420047,
+  SignatureData:     0x42004F,
+  MACData:           0x420051,
+  ValidityIndicator: 0x420098,
+
+  // Revocation
+  RevocationReason:     0x420082,
+  RevocationReasonCode: 0x420083,
+
+  // Query
+  QueryFunction: 0x420074,
+
+  // State
+  State: 0x42008D,
+
+  // Derivation
+  DerivationMethod:     0x420031,
+  DerivationParameters: 0x420032,
+  DerivationData:       0x420030,
+
+  // Lease
+  LeaseTime: 0x420049,
 };
 
 const Operation = {
-  Create:   0x00000001,
-  Get:      0x0000000A,
-  Locate:   0x00000008,
-  Activate: 0x00000012,
-  Destroy:  0x00000014,
-  Check:    0x00000009,
+  Create:           0x00000001,
+  CreateKeyPair:    0x00000002,
+  Register:         0x00000003,
+  ReKey:            0x00000004,
+  DeriveKey:        0x00000005,
+  Locate:           0x00000008,
+  Check:            0x00000009,
+  Get:              0x0000000A,
+  GetAttributes:    0x0000000B,
+  GetAttributeList: 0x0000000C,
+  AddAttribute:     0x0000000D,
+  ModifyAttribute:  0x0000000E,
+  DeleteAttribute:  0x0000000F,
+  ObtainLease:      0x00000010,
+  Activate:         0x00000012,
+  Revoke:           0x00000013,
+  Destroy:          0x00000014,
+  Archive:          0x00000015,
+  Recover:          0x00000016,
+  Query:            0x00000018,
+  Poll:             0x0000001A,
+  DiscoverVersions: 0x0000001E,
+  Encrypt:          0x0000001F,
+  Decrypt:          0x00000020,
+  Sign:             0x00000021,
+  SignatureVerify:  0x00000022,
+  MAC:              0x00000023,
 };
 
 const ObjectType = {

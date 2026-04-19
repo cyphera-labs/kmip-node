@@ -4,14 +4,26 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const {
   buildLocateRequest, buildGetRequest, buildCreateRequest,
+  buildActivateRequest, buildDestroyRequest, buildCreateKeyPairRequest,
+  buildRegisterRequest, buildReKeyRequest, buildDeriveKeyRequest,
+  buildCheckRequest, buildGetAttributesRequest, buildGetAttributeListRequest,
+  buildAddAttributeRequest, buildModifyAttributeRequest, buildDeleteAttributeRequest,
+  buildObtainLeaseRequest, buildRevokeRequest, buildArchiveRequest,
+  buildRecoverRequest, buildQueryRequest, buildPollRequest,
+  buildDiscoverVersionsRequest, buildEncryptRequest, buildDecryptRequest,
+  buildSignRequest, buildSignatureVerifyRequest, buildMACRequest,
   parseResponse, parseLocatePayload, parseGetPayload, parseCreatePayload,
+  parseCheckPayload, parseReKeyPayload, parseEncryptPayload, parseDecryptPayload,
+  parseSignPayload, parseSignatureVerifyPayload, parseMACPayload,
+  parseQueryPayload, parseDiscoverVersionsPayload, parseDeriveKeyPayload,
+  parseCreateKeyPairPayload,
   PROTOCOL_MAJOR, PROTOCOL_MINOR,
 } = require("./operations");
 const {
   Type, decodeTTLV, findChild, findChildren,
   encodeStructure, encodeEnum, encodeInteger, encodeTextString, encodeByteString,
 } = require("./ttlv");
-const { Tag, Operation, ObjectType, ResultStatus, Algorithm, UsageMask } = require("./tags");
+const { Tag, Operation, ObjectType, ResultStatus, Algorithm, UsageMask, KeyFormatType } = require("./tags");
 
 // ---------------------------------------------------------------------------
 // Request building
@@ -346,5 +358,468 @@ describe("Operations — round-trip verification", () => {
     const batch = findChild(decoded, Tag.BatchItem);
     const op = findChild(batch, Tag.Operation);
     assert.equal(op.value, Operation.Create);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New request builders
+// ---------------------------------------------------------------------------
+
+describe("Operations — new request builders", () => {
+  function verifyRequestStructure(request, expectedOp) {
+    const decoded = decodeTTLV(request);
+    assert.equal(decoded.tag, Tag.RequestMessage);
+    const batch = findChild(decoded, Tag.BatchItem);
+    assert.notEqual(batch, null);
+    const op = findChild(batch, Tag.Operation);
+    assert.equal(op.value, expectedOp);
+    return { decoded, batch };
+  }
+
+  function getPayload(batch) {
+    return findChild(batch, Tag.RequestPayload);
+  }
+
+  it("buildActivateRequest has Activate operation and UID", () => {
+    const request = buildActivateRequest("uid-1");
+    const { batch } = verifyRequestStructure(request, Operation.Activate);
+    const payload = getPayload(batch);
+    const uid = findChild(payload, Tag.UniqueIdentifier);
+    assert.equal(uid.value, "uid-1");
+  });
+
+  it("buildDestroyRequest has Destroy operation and UID", () => {
+    const request = buildDestroyRequest("uid-2");
+    const { batch } = verifyRequestStructure(request, Operation.Destroy);
+    const payload = getPayload(batch);
+    const uid = findChild(payload, Tag.UniqueIdentifier);
+    assert.equal(uid.value, "uid-2");
+  });
+
+  it("buildCreateKeyPairRequest has CreateKeyPair operation", () => {
+    const request = buildCreateKeyPairRequest("kp-name", Algorithm.RSA, 2048);
+    const { batch } = verifyRequestStructure(request, Operation.CreateKeyPair);
+    const payload = getPayload(batch);
+    const tmpl = findChild(payload, Tag.TemplateAttribute);
+    assert.notEqual(tmpl, null);
+    const attrs = findChildren(tmpl, Tag.Attribute);
+    const algoAttr = attrs.find(a => {
+      const n = findChild(a, Tag.AttributeName);
+      return n && n.value === "Cryptographic Algorithm";
+    });
+    assert.notEqual(algoAttr, null);
+    const algoVal = findChild(algoAttr, Tag.AttributeValue);
+    assert.equal(algoVal.value, Algorithm.RSA);
+  });
+
+  it("buildRegisterRequest has Register operation with key material", () => {
+    const material = Buffer.from("deadbeef", "hex");
+    const request = buildRegisterRequest(ObjectType.SymmetricKey, material, "reg-key", Algorithm.AES, 256);
+    const { batch } = verifyRequestStructure(request, Operation.Register);
+    const payload = getPayload(batch);
+    const objType = findChild(payload, Tag.ObjectType);
+    assert.equal(objType.value, ObjectType.SymmetricKey);
+    const symKey = findChild(payload, Tag.SymmetricKey);
+    assert.notEqual(symKey, null);
+    const keyBlock = findChild(symKey, Tag.KeyBlock);
+    assert.notEqual(keyBlock, null);
+    const keyValue = findChild(keyBlock, Tag.KeyValue);
+    const keyMat = findChild(keyValue, Tag.KeyMaterial);
+    assert.deepEqual(keyMat.value, material);
+  });
+
+  it("buildRegisterRequest omits TemplateAttribute when name is empty", () => {
+    const material = Buffer.from("cafe", "hex");
+    const request = buildRegisterRequest(ObjectType.SymmetricKey, material, "", Algorithm.AES, 128);
+    const { batch } = verifyRequestStructure(request, Operation.Register);
+    const payload = getPayload(batch);
+    const tmpl = findChild(payload, Tag.TemplateAttribute);
+    assert.equal(tmpl, null);
+  });
+
+  it("buildReKeyRequest has ReKey operation and UID", () => {
+    const request = buildReKeyRequest("uid-rk");
+    const { batch } = verifyRequestStructure(request, Operation.ReKey);
+    const payload = getPayload(batch);
+    const uid = findChild(payload, Tag.UniqueIdentifier);
+    assert.equal(uid.value, "uid-rk");
+  });
+
+  it("buildDeriveKeyRequest has DeriveKey operation with derivation params", () => {
+    const derData = Buffer.from("aabb", "hex");
+    const request = buildDeriveKeyRequest("uid-dk", derData, "derived-key", 128);
+    const { batch } = verifyRequestStructure(request, Operation.DeriveKey);
+    const payload = getPayload(batch);
+    const uid = findChild(payload, Tag.UniqueIdentifier);
+    assert.equal(uid.value, "uid-dk");
+    const params = findChild(payload, Tag.DerivationParameters);
+    assert.notEqual(params, null);
+    const dd = findChild(params, Tag.DerivationData);
+    assert.deepEqual(dd.value, derData);
+  });
+
+  it("buildCheckRequest has Check operation and UID", () => {
+    const request = buildCheckRequest("uid-chk");
+    const { batch } = verifyRequestStructure(request, Operation.Check);
+    const payload = getPayload(batch);
+    const uid = findChild(payload, Tag.UniqueIdentifier);
+    assert.equal(uid.value, "uid-chk");
+  });
+
+  it("buildGetAttributesRequest has GetAttributes operation", () => {
+    const request = buildGetAttributesRequest("uid-ga");
+    verifyRequestStructure(request, Operation.GetAttributes);
+  });
+
+  it("buildGetAttributeListRequest has GetAttributeList operation", () => {
+    const request = buildGetAttributeListRequest("uid-gal");
+    verifyRequestStructure(request, Operation.GetAttributeList);
+  });
+
+  it("buildAddAttributeRequest has AddAttribute operation with attr", () => {
+    const request = buildAddAttributeRequest("uid-aa", "Contact", "admin@example.com");
+    const { batch } = verifyRequestStructure(request, Operation.AddAttribute);
+    const payload = getPayload(batch);
+    const uid = findChild(payload, Tag.UniqueIdentifier);
+    assert.equal(uid.value, "uid-aa");
+    const attr = findChild(payload, Tag.Attribute);
+    const attrName = findChild(attr, Tag.AttributeName);
+    assert.equal(attrName.value, "Contact");
+    const attrValue = findChild(attr, Tag.AttributeValue);
+    assert.equal(attrValue.value, "admin@example.com");
+  });
+
+  it("buildModifyAttributeRequest has ModifyAttribute operation", () => {
+    const request = buildModifyAttributeRequest("uid-ma", "Contact", "new@example.com");
+    const { batch } = verifyRequestStructure(request, Operation.ModifyAttribute);
+    const payload = getPayload(batch);
+    const attr = findChild(payload, Tag.Attribute);
+    const attrValue = findChild(attr, Tag.AttributeValue);
+    assert.equal(attrValue.value, "new@example.com");
+  });
+
+  it("buildDeleteAttributeRequest has DeleteAttribute operation", () => {
+    const request = buildDeleteAttributeRequest("uid-da", "Contact");
+    const { batch } = verifyRequestStructure(request, Operation.DeleteAttribute);
+    const payload = getPayload(batch);
+    const attr = findChild(payload, Tag.Attribute);
+    const attrName = findChild(attr, Tag.AttributeName);
+    assert.equal(attrName.value, "Contact");
+  });
+
+  it("buildObtainLeaseRequest has ObtainLease operation", () => {
+    const request = buildObtainLeaseRequest("uid-ol");
+    verifyRequestStructure(request, Operation.ObtainLease);
+  });
+
+  it("buildRevokeRequest has Revoke operation with reason", () => {
+    const request = buildRevokeRequest("uid-rev", 1);
+    const { batch } = verifyRequestStructure(request, Operation.Revoke);
+    const payload = getPayload(batch);
+    const revReason = findChild(payload, Tag.RevocationReason);
+    assert.notEqual(revReason, null);
+    const reasonCode = findChild(revReason, Tag.RevocationReasonCode);
+    assert.equal(reasonCode.value, 1);
+  });
+
+  it("buildArchiveRequest has Archive operation", () => {
+    const request = buildArchiveRequest("uid-arc");
+    verifyRequestStructure(request, Operation.Archive);
+  });
+
+  it("buildRecoverRequest has Recover operation", () => {
+    const request = buildRecoverRequest("uid-rec");
+    verifyRequestStructure(request, Operation.Recover);
+  });
+
+  it("buildQueryRequest has Query operation with empty payload", () => {
+    const request = buildQueryRequest();
+    verifyRequestStructure(request, Operation.Query);
+  });
+
+  it("buildPollRequest has Poll operation with empty payload", () => {
+    const request = buildPollRequest();
+    verifyRequestStructure(request, Operation.Poll);
+  });
+
+  it("buildDiscoverVersionsRequest has DiscoverVersions operation", () => {
+    const request = buildDiscoverVersionsRequest();
+    verifyRequestStructure(request, Operation.DiscoverVersions);
+  });
+
+  it("buildEncryptRequest has Encrypt operation with data", () => {
+    const data = Buffer.from("plaintext", "utf8");
+    const request = buildEncryptRequest("uid-enc", data);
+    const { batch } = verifyRequestStructure(request, Operation.Encrypt);
+    const payload = getPayload(batch);
+    const d = findChild(payload, Tag.Data);
+    assert.deepEqual(d.value, data);
+  });
+
+  it("buildDecryptRequest has Decrypt operation with data", () => {
+    const data = Buffer.from("ciphertext", "utf8");
+    const request = buildDecryptRequest("uid-dec", data);
+    const { batch } = verifyRequestStructure(request, Operation.Decrypt);
+    const payload = getPayload(batch);
+    const d = findChild(payload, Tag.Data);
+    assert.deepEqual(d.value, data);
+  });
+
+  it("buildDecryptRequest includes nonce when provided", () => {
+    const data = Buffer.from("ct", "utf8");
+    const nonce = Buffer.from("aabbccdd", "hex");
+    const request = buildDecryptRequest("uid-dec2", data, nonce);
+    const decoded = decodeTTLV(request);
+    const batch = findChild(decoded, Tag.BatchItem);
+    const payload = getPayload(batch);
+    const iv = findChild(payload, Tag.IVCounterNonce);
+    assert.deepEqual(iv.value, nonce);
+  });
+
+  it("buildDecryptRequest omits nonce when null", () => {
+    const data = Buffer.from("ct", "utf8");
+    const request = buildDecryptRequest("uid-dec3", data, null);
+    const decoded = decodeTTLV(request);
+    const batch = findChild(decoded, Tag.BatchItem);
+    const payload = getPayload(batch);
+    const iv = findChild(payload, Tag.IVCounterNonce);
+    assert.equal(iv, null);
+  });
+
+  it("buildSignRequest has Sign operation with data", () => {
+    const data = Buffer.from("message", "utf8");
+    const request = buildSignRequest("uid-sign", data);
+    const { batch } = verifyRequestStructure(request, Operation.Sign);
+    const payload = getPayload(batch);
+    const d = findChild(payload, Tag.Data);
+    assert.deepEqual(d.value, data);
+  });
+
+  it("buildSignatureVerifyRequest has SignatureVerify operation with data and signature", () => {
+    const data = Buffer.from("msg", "utf8");
+    const sig = Buffer.from("sigbytes", "utf8");
+    const request = buildSignatureVerifyRequest("uid-sv", data, sig);
+    const { batch } = verifyRequestStructure(request, Operation.SignatureVerify);
+    const payload = getPayload(batch);
+    const d = findChild(payload, Tag.Data);
+    assert.deepEqual(d.value, data);
+    const s = findChild(payload, Tag.SignatureData);
+    assert.deepEqual(s.value, sig);
+  });
+
+  it("buildMACRequest has MAC operation with data", () => {
+    const data = Buffer.from("macme", "utf8");
+    const request = buildMACRequest("uid-mac", data);
+    const { batch } = verifyRequestStructure(request, Operation.MAC);
+    const payload = getPayload(batch);
+    const d = findChild(payload, Tag.Data);
+    assert.deepEqual(d.value, data);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New response parsers
+// ---------------------------------------------------------------------------
+
+describe("Operations — new response parsers", () => {
+  it("parseCheckPayload extracts uniqueIdentifier", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeTextString(Tag.UniqueIdentifier, "chk-uid"),
+    ]));
+    const result = parseCheckPayload(payload);
+    assert.equal(result.uniqueIdentifier, "chk-uid");
+  });
+
+  it("parseCheckPayload handles null payload", () => {
+    const result = parseCheckPayload(null);
+    assert.equal(result.uniqueIdentifier, null);
+  });
+
+  it("parseReKeyPayload extracts uniqueIdentifier", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeTextString(Tag.UniqueIdentifier, "rk-uid"),
+    ]));
+    const result = parseReKeyPayload(payload);
+    assert.equal(result.uniqueIdentifier, "rk-uid");
+  });
+
+  it("parseReKeyPayload handles null payload", () => {
+    const result = parseReKeyPayload(null);
+    assert.equal(result.uniqueIdentifier, null);
+  });
+
+  it("parseEncryptPayload extracts data and nonce", () => {
+    const ct = Buffer.from("ciphertext", "utf8");
+    const nonce = Buffer.from("aabbccdd", "hex");
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeByteString(Tag.Data, ct),
+      encodeByteString(Tag.IVCounterNonce, nonce),
+    ]));
+    const result = parseEncryptPayload(payload);
+    assert.deepEqual(result.data, ct);
+    assert.deepEqual(result.nonce, nonce);
+  });
+
+  it("parseEncryptPayload handles null payload", () => {
+    const result = parseEncryptPayload(null);
+    assert.equal(result.data, null);
+    assert.equal(result.nonce, null);
+  });
+
+  it("parseEncryptPayload handles payload without nonce", () => {
+    const ct = Buffer.from("ct", "utf8");
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeByteString(Tag.Data, ct),
+    ]));
+    const result = parseEncryptPayload(payload);
+    assert.deepEqual(result.data, ct);
+    assert.equal(result.nonce, null);
+  });
+
+  it("parseDecryptPayload extracts data", () => {
+    const pt = Buffer.from("plaintext", "utf8");
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeByteString(Tag.Data, pt),
+    ]));
+    const result = parseDecryptPayload(payload);
+    assert.deepEqual(result.data, pt);
+  });
+
+  it("parseDecryptPayload handles null payload", () => {
+    const result = parseDecryptPayload(null);
+    assert.equal(result.data, null);
+  });
+
+  it("parseSignPayload extracts signatureData", () => {
+    const sig = Buffer.from("sigbytes", "utf8");
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeByteString(Tag.SignatureData, sig),
+    ]));
+    const result = parseSignPayload(payload);
+    assert.deepEqual(result.signatureData, sig);
+  });
+
+  it("parseSignPayload handles null payload", () => {
+    const result = parseSignPayload(null);
+    assert.equal(result.signatureData, null);
+  });
+
+  it("parseSignatureVerifyPayload returns valid=true for indicator 0", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeEnum(Tag.ValidityIndicator, 0),
+    ]));
+    const result = parseSignatureVerifyPayload(payload);
+    assert.equal(result.valid, true);
+  });
+
+  it("parseSignatureVerifyPayload returns valid=false for indicator 1", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeEnum(Tag.ValidityIndicator, 1),
+    ]));
+    const result = parseSignatureVerifyPayload(payload);
+    assert.equal(result.valid, false);
+  });
+
+  it("parseSignatureVerifyPayload handles null payload", () => {
+    const result = parseSignatureVerifyPayload(null);
+    assert.equal(result.valid, false);
+  });
+
+  it("parseMACPayload extracts macData", () => {
+    const mac = Buffer.from("macvalue", "utf8");
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeByteString(Tag.MACData, mac),
+    ]));
+    const result = parseMACPayload(payload);
+    assert.deepEqual(result.macData, mac);
+  });
+
+  it("parseMACPayload handles null payload", () => {
+    const result = parseMACPayload(null);
+    assert.equal(result.macData, null);
+  });
+
+  it("parseQueryPayload extracts operations and object types", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeEnum(Tag.Operation, Operation.Create),
+      encodeEnum(Tag.Operation, Operation.Get),
+      encodeEnum(Tag.ObjectType, ObjectType.SymmetricKey),
+    ]));
+    const result = parseQueryPayload(payload);
+    assert.deepEqual(result.operations, [Operation.Create, Operation.Get]);
+    assert.deepEqual(result.objectTypes, [ObjectType.SymmetricKey]);
+  });
+
+  it("parseQueryPayload handles null payload", () => {
+    const result = parseQueryPayload(null);
+    assert.deepEqual(result.operations, []);
+    assert.deepEqual(result.objectTypes, []);
+  });
+
+  it("parseQueryPayload handles empty payload", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, []));
+    const result = parseQueryPayload(payload);
+    assert.deepEqual(result.operations, []);
+    assert.deepEqual(result.objectTypes, []);
+  });
+
+  it("parseDiscoverVersionsPayload extracts versions", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeStructure(Tag.ProtocolVersion, [
+        encodeInteger(Tag.ProtocolVersionMajor, 1),
+        encodeInteger(Tag.ProtocolVersionMinor, 4),
+      ]),
+      encodeStructure(Tag.ProtocolVersion, [
+        encodeInteger(Tag.ProtocolVersionMajor, 1),
+        encodeInteger(Tag.ProtocolVersionMinor, 3),
+      ]),
+    ]));
+    const result = parseDiscoverVersionsPayload(payload);
+    assert.equal(result.versions.length, 2);
+    assert.deepEqual(result.versions[0], { major: 1, minor: 4 });
+    assert.deepEqual(result.versions[1], { major: 1, minor: 3 });
+  });
+
+  it("parseDiscoverVersionsPayload handles null payload", () => {
+    const result = parseDiscoverVersionsPayload(null);
+    assert.deepEqual(result.versions, []);
+  });
+
+  it("parseDeriveKeyPayload extracts uniqueIdentifier", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeTextString(Tag.UniqueIdentifier, "dk-uid"),
+    ]));
+    const result = parseDeriveKeyPayload(payload);
+    assert.equal(result.uniqueIdentifier, "dk-uid");
+  });
+
+  it("parseDeriveKeyPayload handles null payload", () => {
+    const result = parseDeriveKeyPayload(null);
+    assert.equal(result.uniqueIdentifier, null);
+  });
+
+  it("parseCreateKeyPairPayload extracts private and public UIDs", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeTextString(Tag.PrivateKeyUniqueIdentifier, "priv-uid"),
+      encodeTextString(Tag.PublicKeyUniqueIdentifier, "pub-uid"),
+    ]));
+    const result = parseCreateKeyPairPayload(payload);
+    assert.equal(result.privateKeyUID, "priv-uid");
+    assert.equal(result.publicKeyUID, "pub-uid");
+  });
+
+  it("parseCreateKeyPairPayload handles null payload", () => {
+    const result = parseCreateKeyPairPayload(null);
+    assert.equal(result.privateKeyUID, null);
+    assert.equal(result.publicKeyUID, null);
+  });
+
+  it("parseCreateKeyPairPayload handles partial payload (only private)", () => {
+    const payload = decodeTTLV(encodeStructure(Tag.ResponsePayload, [
+      encodeTextString(Tag.PrivateKeyUniqueIdentifier, "priv-only"),
+    ]));
+    const result = parseCreateKeyPairPayload(payload);
+    assert.equal(result.privateKeyUID, "priv-only");
+    assert.equal(result.publicKeyUID, null);
   });
 });

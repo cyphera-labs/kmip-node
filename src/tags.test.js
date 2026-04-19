@@ -30,11 +30,36 @@ describe("Tags — ObjectType (KMIP 1.4 spec)", () => {
 
 describe("Tags — Operations (KMIP 1.4 spec)", () => {
   it("Create = 0x00000001", () => assert.equal(Operation.Create, 0x00000001));
+  it("CreateKeyPair = 0x00000002", () => assert.equal(Operation.CreateKeyPair, 0x00000002));
+  it("Register = 0x00000003", () => assert.equal(Operation.Register, 0x00000003));
+  it("ReKey = 0x00000004", () => assert.equal(Operation.ReKey, 0x00000004));
+  it("DeriveKey = 0x00000005", () => assert.equal(Operation.DeriveKey, 0x00000005));
   it("Locate = 0x00000008", () => assert.equal(Operation.Locate, 0x00000008));
-  it("Get = 0x0000000A", () => assert.equal(Operation.Get, 0x0000000A));
-  it("Activate = 0x00000012", () => assert.equal(Operation.Activate, 0x00000012));
-  it("Destroy = 0x00000014", () => assert.equal(Operation.Destroy, 0x00000014));
   it("Check = 0x00000009", () => assert.equal(Operation.Check, 0x00000009));
+  it("Get = 0x0000000A", () => assert.equal(Operation.Get, 0x0000000A));
+  it("GetAttributes = 0x0000000B", () => assert.equal(Operation.GetAttributes, 0x0000000B));
+  it("GetAttributeList = 0x0000000C", () => assert.equal(Operation.GetAttributeList, 0x0000000C));
+  it("AddAttribute = 0x0000000D", () => assert.equal(Operation.AddAttribute, 0x0000000D));
+  it("ModifyAttribute = 0x0000000E", () => assert.equal(Operation.ModifyAttribute, 0x0000000E));
+  it("DeleteAttribute = 0x0000000F", () => assert.equal(Operation.DeleteAttribute, 0x0000000F));
+  it("ObtainLease = 0x00000010", () => assert.equal(Operation.ObtainLease, 0x00000010));
+  it("Activate = 0x00000012", () => assert.equal(Operation.Activate, 0x00000012));
+  it("Revoke = 0x00000013", () => assert.equal(Operation.Revoke, 0x00000013));
+  it("Destroy = 0x00000014", () => assert.equal(Operation.Destroy, 0x00000014));
+  it("Archive = 0x00000015", () => assert.equal(Operation.Archive, 0x00000015));
+  it("Recover = 0x00000016", () => assert.equal(Operation.Recover, 0x00000016));
+  it("Query = 0x00000018", () => assert.equal(Operation.Query, 0x00000018));
+  it("Poll = 0x0000001A", () => assert.equal(Operation.Poll, 0x0000001A));
+  it("DiscoverVersions = 0x0000001E", () => assert.equal(Operation.DiscoverVersions, 0x0000001E));
+  it("Encrypt = 0x0000001F", () => assert.equal(Operation.Encrypt, 0x0000001F));
+  it("Decrypt = 0x00000020", () => assert.equal(Operation.Decrypt, 0x00000020));
+  it("Sign = 0x00000021", () => assert.equal(Operation.Sign, 0x00000021));
+  it("SignatureVerify = 0x00000022", () => assert.equal(Operation.SignatureVerify, 0x00000022));
+  it("MAC = 0x00000023", () => assert.equal(Operation.MAC, 0x00000023));
+
+  it("has 27 operations", () => {
+    assert.equal(Object.keys(Operation).length, 27);
+  });
 
   it("has no duplicate values", () => {
     const values = Object.values(Operation);
@@ -155,4 +180,31 @@ describe("Tags — tag values in KMIP range", () => {
     const values = Object.values(Tag);
     assert.equal(new Set(values).size, values.length);
   });
+});
+
+// ---------------------------------------------------------------------------
+// New tag constants — key pair, certificate, crypto ops, revocation, etc.
+// ---------------------------------------------------------------------------
+
+describe("Tags — new tag constants", () => {
+  it("PrivateKeyUniqueIdentifier = 0x420066", () => assert.equal(Tag.PrivateKeyUniqueIdentifier, 0x420066));
+  it("PublicKeyUniqueIdentifier = 0x42006F", () => assert.equal(Tag.PublicKeyUniqueIdentifier, 0x42006F));
+  it("PublicKey = 0x42004E", () => assert.equal(Tag.PublicKey, 0x42004E));
+  it("PrivateKey = 0x42004D", () => assert.equal(Tag.PrivateKey, 0x42004D));
+  it("Certificate = 0x420021", () => assert.equal(Tag.Certificate, 0x420021));
+  it("CertificateType = 0x42001D", () => assert.equal(Tag.CertificateType, 0x42001D));
+  it("CertificateValue = 0x42001E", () => assert.equal(Tag.CertificateValue, 0x42001E));
+  it("Data = 0x420033", () => assert.equal(Tag.Data, 0x420033));
+  it("IVCounterNonce = 0x420047", () => assert.equal(Tag.IVCounterNonce, 0x420047));
+  it("SignatureData = 0x42004F", () => assert.equal(Tag.SignatureData, 0x42004F));
+  it("MACData = 0x420051", () => assert.equal(Tag.MACData, 0x420051));
+  it("ValidityIndicator = 0x420098", () => assert.equal(Tag.ValidityIndicator, 0x420098));
+  it("RevocationReason = 0x420082", () => assert.equal(Tag.RevocationReason, 0x420082));
+  it("RevocationReasonCode = 0x420083", () => assert.equal(Tag.RevocationReasonCode, 0x420083));
+  it("QueryFunction = 0x420074", () => assert.equal(Tag.QueryFunction, 0x420074));
+  it("State = 0x42008D", () => assert.equal(Tag.State, 0x42008D));
+  it("DerivationMethod = 0x420031", () => assert.equal(Tag.DerivationMethod, 0x420031));
+  it("DerivationParameters = 0x420032", () => assert.equal(Tag.DerivationParameters, 0x420032));
+  it("DerivationData = 0x420030", () => assert.equal(Tag.DerivationData, 0x420030));
+  it("LeaseTime = 0x420049", () => assert.equal(Tag.LeaseTime, 0x420049));
 });
