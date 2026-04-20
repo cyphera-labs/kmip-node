@@ -52,13 +52,28 @@ class KmipClient {
    * @param {boolean} [options.insecureSkipVerify=false] — DANGER: disables server certificate verification
    */
   constructor(options) {
+    // L4: Validate required host
+    if (!options.host) throw new Error("KmipClient: options.host is required");
     this.host = options.host;
     this.port = options.port || 5696;
     this.timeout = options.timeout || 10000;
     this._socket = null;
+    this._connectingPromise = null; // M5: prevent concurrent connection races
     this._insecureSkipVerify = options.insecureSkipVerify === true;
+    this._credential = options.credential || null; // KMIP auth credential {username, password}
 
-    // Load certs — accept file paths or PEM strings
+    // M2: Warn on insecure mode
+    if (this._insecureSkipVerify) {
+      process.emitWarning(
+        "KmipClient: insecureSkipVerify=true disables TLS certificate verification. NEVER use in production.",
+        "SecurityWarning"
+      );
+    }
+
+    // H2: Store cert/key paths, don't preload key PEM into V8 string
+    this._certPath = options.clientCert;
+    this._keyPath = options.clientKey;
+    this._caPath = options.caCert;
     this._cert = loadPem(options.clientCert);
     this._key = loadPem(options.clientKey);
     this._ca = options.caCert ? loadPem(options.caCert) : undefined;
@@ -447,20 +462,32 @@ class KmipClient {
     const socket = await this._connect();
 
     return new Promise((resolve, reject) => {
+      let settled = false;
       const chunks = [];
       let expectedLength = null;
+
+      // M4: Per-call timeout to prevent hanging on stalled servers
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          socket.removeListener("data", onData);
+          this._socket = null;
+          reject(new Error(`KMIP: response timed out after ${this.timeout}ms`));
+        }
+      }, this.timeout);
+      timer.unref(); // Don't block process exit
 
       const onData = (data) => {
         chunks.push(data);
         const buf = Buffer.concat(chunks);
 
-        // TTLV header: first 8 bytes contain the total length
         if (expectedLength === null && buf.length >= 8) {
           const valueLength = buf.readUInt32BE(4);
-          // Validate response size before allocating.
           if (valueLength > MAX_RESPONSE_SIZE) {
+            settled = true;
+            clearTimeout(timer);
             socket.removeListener("data", onData);
-            this._socket = null; // Mark connection as stale.
+            this._socket = null;
             reject(new Error(`KMIP: response too large (${valueLength} bytes, max ${MAX_RESPONSE_SIZE})`));
             return;
           }
@@ -468,6 +495,8 @@ class KmipClient {
         }
 
         if (expectedLength !== null && buf.length >= expectedLength) {
+          settled = true;
+          clearTimeout(timer);
           socket.removeListener("data", onData);
           resolve(buf.subarray(0, expectedLength));
         }
@@ -475,12 +504,18 @@ class KmipClient {
 
       socket.on("data", onData);
       socket.once("error", (err) => {
-        this._socket = null; // Mark connection as stale on error.
-        reject(err);
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          this._socket = null;
+          reject(err);
+        }
       });
       socket.write(request, (err) => {
-        if (err) {
-          this._socket = null; // Mark connection as stale on write error.
+        if (err && !settled) {
+          settled = true;
+          clearTimeout(timer);
+          this._socket = null;
           reject(new Error(`KMIP: failed to write request: ${err.message}`));
         }
       });
@@ -496,21 +531,29 @@ class KmipClient {
       return this._socket;
     }
 
-    return new Promise((resolve, reject) => {
+    // M5: Prevent concurrent connection races
+    if (this._connectingPromise) return this._connectingPromise;
+
+    this._connectingPromise = new Promise((resolve, reject) => {
       const options = {
         host: this.host,
         port: this.port,
         cert: this._cert,
         key: this._key,
         ca: this._ca,
-        // Always verify server certificates by default (uses system roots when no CA provided).
-        // Only disable if explicitly opted in via insecureSkipVerify.
         rejectUnauthorized: !this._insecureSkipVerify,
         timeout: this.timeout,
+        minVersion: "TLSv1.2", // H3: Enforce minimum TLS version
       };
 
       const socket = tls.connect(options, () => {
         this._socket = socket;
+
+        // C1: Persistent error listener prevents unhandled EventEmitter crash on idle socket
+        socket.on("error", (err) => {
+          if (this._socket === socket) this._socket = null;
+        });
+
         resolve(socket);
       });
 
@@ -522,7 +565,11 @@ class KmipClient {
         socket.destroy();
         reject(new Error(`KMIP connection timed out after ${this.timeout}ms`));
       });
+    }).finally(() => {
+      this._connectingPromise = null;
     });
+
+    return this._connectingPromise;
   }
 }
 

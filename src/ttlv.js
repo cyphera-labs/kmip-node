@@ -160,6 +160,8 @@ function decodeTTLV(buf, offset = 0, depth = 0) {
         const child = decodeTTLV(buf, pos, depth + 1);
         children.push(child);
         pos += child.totalLength;
+        // M1: Guard against child overrunning the structure boundary
+        if (pos > end) throw new Error("TTLV: child overruns structure boundary");
       }
       value = children;
       break;
@@ -180,19 +182,22 @@ function decodeTTLV(buf, offset = 0, depth = 0) {
       value = buf.toString("utf8", valueStart, valueStart + length);
       break;
     case Type.ByteString:
-      value = buf.subarray(valueStart, valueStart + length);
+      // H1: Defensive copy — don't share ArrayBuffer with response
+      value = Buffer.from(buf.subarray(valueStart, valueStart + length));
       break;
     case Type.DateTime:
       value = new Date(Number(buf.readBigInt64BE(valueStart)) * 1000);
       break;
     case Type.BigInteger:
-      value = buf.subarray(valueStart, valueStart + length);
+      // H1: Defensive copy
+      value = Buffer.from(buf.subarray(valueStart, valueStart + length));
       break;
     case Type.Interval:
       value = buf.readUInt32BE(valueStart);
       break;
     default:
-      value = buf.subarray(valueStart, valueStart + length);
+      // H1: Defensive copy
+      value = Buffer.from(buf.subarray(valueStart, valueStart + length));
   }
 
   return { tag, type, value, length, totalLength };

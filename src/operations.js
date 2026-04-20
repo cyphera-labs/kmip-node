@@ -128,11 +128,19 @@ function parseResponse(data) {
   const messageItem = findChild(batchItem, Tag.ResultMessage);
   const payloadItem = findChild(batchItem, Tag.ResponsePayload);
 
+  // ResultStatus missing = treat as failure (not silent success)
+  if (!statusItem) {
+    throw new Error("KMIP: response missing ResultStatus field");
+  }
+
   const result = {
     operation: operationItem ? operationItem.value : null,
-    resultStatus: statusItem ? statusItem.value : null,
+    resultStatus: statusItem.value,
     resultReason: reasonItem ? reasonItem.value : null,
-    resultMessage: messageItem ? messageItem.value : null,
+    // M3: Sanitize server-controlled resultMessage to prevent log injection
+    resultMessage: messageItem
+      ? String(messageItem.value || "").slice(0, 256).replace(/[\r\n]/g, " ")
+      : null,
     payload: payloadItem,
   };
 
