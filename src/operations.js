@@ -351,10 +351,12 @@ function buildReKeyRequest(uniqueId) {
 /**
  * Build a DeriveKey request.
  */
-function buildDeriveKeyRequest(uniqueId, derivationData, name, length = 256) {
+function buildDeriveKeyRequest(uniqueId, derivationData, name, length = 256, derivationMethod = 1) {
   const payload = encodeStructure(Tag.RequestPayload, [
     encodeTextString(Tag.UniqueIdentifier, uniqueId),
     encodeStructure(Tag.DerivationParameters, [
+      // M6: Include DerivationMethod per KMIP 1.4 §6.32 (default 1 = PBKDF2)
+      encodeEnum(Tag.DerivationMethod, derivationMethod),
       encodeByteString(Tag.DerivationData, derivationData),
     ]),
     encodeStructure(Tag.TemplateAttribute, [

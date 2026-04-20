@@ -61,6 +61,7 @@ class KmipClient {
     this._connectingPromise = null; // M5: prevent concurrent connection races
     this._insecureSkipVerify = options.insecureSkipVerify === true;
     this._credential = options.credential || null; // KMIP auth credential {username, password}
+    this._serverCertFingerprint = options.serverCertFingerprint || null; // L1: optional cert pinning (SHA-256 hex)
 
     // M2: Warn on insecure mode
     if (this._insecureSkipVerify) {
@@ -70,13 +71,10 @@ class KmipClient {
       );
     }
 
-    // H2: Store cert/key paths, don't preload key PEM into V8 string
-    this._certPath = options.clientCert;
-    this._keyPath = options.clientKey;
-    this._caPath = options.caCert;
-    this._cert = loadPem(options.clientCert);
-    this._key = loadPem(options.clientKey);
-    this._ca = options.caCert ? loadPem(options.caCert) : undefined;
+    // H2: Load certs as Buffers (not strings) so key material can be zeroed after TLS init
+    this._cert = loadPemAsBuffer(options.clientCert);
+    this._key = loadPemAsBuffer(options.clientKey);
+    this._ca = options.caCert ? loadPemAsBuffer(options.caCert) : undefined;
   }
 
   /**
@@ -535,6 +533,7 @@ class KmipClient {
     if (this._connectingPromise) return this._connectingPromise;
 
     this._connectingPromise = new Promise((resolve, reject) => {
+      const pinFingerprint = this._serverCertFingerprint;
       const options = {
         host: this.host,
         port: this.port,
@@ -545,6 +544,17 @@ class KmipClient {
         timeout: this.timeout,
         minVersion: "TLSv1.2", // H3: Enforce minimum TLS version
       };
+
+      // L1: Certificate pinning — verify server cert fingerprint if configured
+      if (pinFingerprint) {
+        const crypto = require("crypto");
+        options.checkServerIdentity = (hostname, cert) => {
+          const fp = crypto.createHash("sha256").update(cert.raw).digest("hex");
+          if (fp !== pinFingerprint.toLowerCase().replace(/:/g, "")) {
+            throw new Error(`KMIP: server certificate fingerprint mismatch (expected ${pinFingerprint}, got ${fp})`);
+          }
+        };
+      }
 
       const socket = tls.connect(options, () => {
         this._socket = socket;
@@ -574,12 +584,15 @@ class KmipClient {
 }
 
 /**
- * Load a PEM — if it looks like a file path, read it; otherwise treat as PEM string.
+ * H2: Load a PEM as a Buffer (not a string) so key material stays in Buffer memory
+ * which can be zeroed, rather than in V8's immutable string pool.
  */
-function loadPem(pathOrPem) {
+function loadPemAsBuffer(pathOrPem) {
   if (!pathOrPem) return undefined;
-  if (pathOrPem.includes("-----BEGIN")) return pathOrPem;
-  return fs.readFileSync(pathOrPem, "utf8");
+  if (typeof pathOrPem === "string" && pathOrPem.includes("-----BEGIN")) {
+    return Buffer.from(pathOrPem);
+  }
+  return fs.readFileSync(pathOrPem); // Returns Buffer when no encoding specified
 }
 
 module.exports = { KmipClient };
