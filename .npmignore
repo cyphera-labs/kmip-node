@@ -1,0 +1,5 @@
+.github/
+.editorconfig
+.gitignore
+Dockerfile
+src/*.test.js
