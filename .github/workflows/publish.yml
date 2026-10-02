@@ -20,3 +20,26 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm test
       - run: npm publish --tag alpha --access public
+
+  sbom:
+    name: SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24'
+      - name: Generate a lock file for dependency evidence
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Generate CycloneDX SBOM
+        run: npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --package-lock-only --output-format json --output-file kmip-node-sbom.cdx.json
+      - uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: kmip-node-sbom.spdx.json
+          upload-artifact: false
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: kmip-node-sbom.*.json
